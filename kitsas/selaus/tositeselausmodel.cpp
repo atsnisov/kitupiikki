@@ -35,6 +35,7 @@
 
 #include <algorithm>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QJsonValue>
 
 #include <QPalette>
@@ -255,7 +256,11 @@ TositeSelausRivi::TositeSelausRivi(QSqlQuery &data, bool samakausi)
     summa = data.value("summa").toLongLong();
     liitteita = data.value("liitteita").toInt();
     QJsonDocument json = QJsonDocument::fromJson(data.value("json").toByteArray());
-    huomio = json["huomio"].toBool();
+    if (json.isObject()) {
+        huomio = json.object()["huomio"].toBool();
+    } else {
+        huomio = false;
+    }
     etsiTeksti = tositeTunniste + " " + kumppani + " " + otsikko;
 
 }

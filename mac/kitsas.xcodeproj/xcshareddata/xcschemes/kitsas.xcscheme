@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8DD5FA115ABDC7E753D1D4E8"
-               BuildableName = "Kitsas.app"
-               BlueprintName = "Kitsas"
+               BlueprintIdentifier = "DB164EAB7C0C32C974D12960"
+               BuildableName = "kitsas.app"
+               BlueprintName = "kitsas"
                ReferencedContainer = "container:kitsas.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -31,9 +31,9 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8DD5FA115ABDC7E753D1D4E8"
-            BuildableName = "Kitsas.app"
-            BlueprintName = "Kitsas"
+            BlueprintIdentifier = "DB164EAB7C0C32C974D12960"
+            BuildableName = "kitsas.app"
+            BlueprintName = "kitsas"
             ReferencedContainer = "container:kitsas.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
@@ -73,9 +73,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8DD5FA115ABDC7E753D1D4E8"
-            BuildableName = "Kitsas.app"
-            BlueprintName = "Kitsas"
+            BlueprintIdentifier = "DB164EAB7C0C32C974D12960"
+            BuildableName = "kitsas.app"
+            BlueprintName = "kitsas"
             ReferencedContainer = "container:kitsas.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -97,9 +97,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8DD5FA115ABDC7E753D1D4E8"
-            BuildableName = "Kitsas.app"
-            BlueprintName = "Kitsas"
+            BlueprintIdentifier = "DB164EAB7C0C32C974D12960"
+            BuildableName = "kitsas.app"
+            BlueprintName = "kitsas"
             ReferencedContainer = "container:kitsas.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

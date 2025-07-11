@@ -26,6 +26,7 @@ windows {
 }
 
 macx {
+    QMAKE_XCODE_ATTRIBUTE[ALWAYS_SEARCH_USER_PATHS] = NO
 }
 
 
