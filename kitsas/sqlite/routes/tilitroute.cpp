@@ -24,6 +24,30 @@ TilitRoute::TilitRoute(SQLiteModel *model) :
 
 }
 
+QVariant TilitRoute::get(const QString &polku, const QUrlQuery &/*urlquery*/)
+{
+    QSqlQuery query( db());
+    if (polku.isEmpty()) {
+        query.exec( "SELECT numero,tyyppi,json,iban FROM ( SELECT CAST(numero AS TEXT) AS numero, 'H'||taso AS tyyppi, json, taso, NULL AS iban FROM Otsikko "
+                     " UNION SELECT CAST (numero AS TEXT), tyyppi, json, 99, iban FROM Tili ORDER BY numero, taso) AS sub");
+        return resultList(query);
+    } else {
+        if (polku.contains('/')) {
+            int kautta = polku.indexOf('/');
+            int numero = polku.left(kautta).toInt();
+            int taso = polku.mid(kautta+1).toInt();
+            query.prepare("SELECT CAST(numero AS TEXT) AS numero, 'H'||taso AS tyyppi, json, NULL AS iban FROM Otsikko WHERE numero=? AND taso=?");
+            query.addBindValue(numero);
+            query.addBindValue(taso);
+        } else {
+            query.prepare("SELECT CAST(numero AS TEXT) AS numero, tyyppi, json, iban FROM Tili WHERE numero=?");
+            query.addBindValue(polku.toInt());
+        }
+        query.exec();
+        return resultMap(query);
+    }
+}
+
 QVariant TilitRoute::put(const QString &osoite, const QVariant &data)
 {
     QVariantMap map = data.toMap();

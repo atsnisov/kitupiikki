@@ -53,8 +53,13 @@ QString TositeRoute::kysymys(const QUrlQuery &urlquery)
 
     if( urlquery.hasQueryItem("alkupvm"))
         ehdot.append( QString("tosite.pvm >= '%1'").arg( urlquery.queryItemValue("alkupvm") ));
+    else if( urlquery.hasQueryItem("alkaa"))
+        ehdot.append( QString("tosite.pvm >= '%1'").arg( urlquery.queryItemValue("alkaa") ));
+
     if( urlquery.hasQueryItem("loppupvm"))
         ehdot.append( QString("tosite.pvm <= '%1'").arg( urlquery.queryItemValue("loppupvm")));
+    else if( urlquery.hasQueryItem("loppuu"))
+        ehdot.append( QString("tosite.pvm <= '%1'").arg( urlquery.queryItemValue("loppuu")));
 
     if( urlquery.hasQueryItem("pvm"))
         ehdot.append( QString("tosite.pvm = '%1'").arg(urlquery.queryItemValue("pvm")));

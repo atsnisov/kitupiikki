@@ -57,6 +57,7 @@ SOURCES += \
     $$PWD/kierto/kiertomuokkausmodel.cpp \
     $$PWD/kierto/kiertoselausmodel.cpp \
     $$PWD/kierto/kiertosivu.cpp \
+    $$PWD/cli/clicontroller.cpp \
     $$PWD/kirjaus/kommentitwidget.cpp \
     $$PWD/kirjaus/mallipohjamodel.cpp \
     $$PWD/kirjaus/muumuokkausdlg.cpp \
@@ -492,6 +493,7 @@ HEADERS += \
     $$PWD/kierto/kiertomuokkausmodel.h \
     $$PWD/kierto/kiertoselausmodel.h \
     $$PWD/kierto/kiertosivu.h \
+    $$PWD/cli/clicontroller.h \
     $$PWD/kirjaus/kommentitwidget.h \
     $$PWD/kirjaus/mallipohjamodel.h \
     $$PWD/kirjaus/muumuokkausdlg.h \

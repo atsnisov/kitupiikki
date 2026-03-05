@@ -44,6 +44,9 @@
 
 #include "tools/kitsaslokimodel.h"
 #include "aloitussivu/toffeelogin.h"
+#include "cli/clicontroller.h"
+#include <QTimer>
+#include <iostream>
 
 #include "laskutus/laskunuusinta.h"
 
@@ -81,7 +84,9 @@ int main(int argc, char *argv[])
                           "Kirjautuminen suoraan pilveen"},
                            {"demo",
                            "Demo-tila"},
-                            {"noweb","Käytä aina ulkoista selainta"}
+                            {"noweb","Käytä aina ulkoista selainta"},
+                          {"command", "Suorita komento ja poistu", "komento"},
+                          {"data", "Komennon data JSON-muodossa", "json"}
                       });
     parser.addVersionOption();
     parser.process(a);
@@ -175,6 +180,22 @@ int main(int argc, char *argv[])
         kp()->settings()->setValue("ViimeksiVersiolla", a.applicationVersion());
     }
     a.setProperty("demo", parser.isSet("demo"));
+
+    if (parser.isSet("command")) {
+        // Avaa argumenttina olevan tiedostonnimen
+        if (!parser.positionalArguments().isEmpty() && QFile(parser.positionalArguments().value(0)).exists()) {
+             kirjanpito.sqlite()->avaaTiedosto(parser.positionalArguments().value(0));
+        } else {
+            std::cerr << "Virhe: Tietokantatiedosto puuttuu tai sitä ei löydy." << std::endl;
+            return 1;
+        }
+
+        CLIController *cli = new CLIController(&a);
+        QTimer::singleShot(0, [cli, &parser]() {
+            cli->execute(parser.value("command"), parser.value("data"));
+        });
+        return a.exec();
+    }
 
     QSplashScreen *splash = new QSplashScreen;
     splash->setPixmap( QPixmap(":/pic/splash_" + Kielet::instanssi()->uiKieli() + ".png"));

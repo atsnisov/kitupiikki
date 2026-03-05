@@ -32,6 +32,16 @@ QVariant InfoRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
     QVariantMap map;
     QFileInfo info( kp()->sqlite()->tiedostopolku() );
     map.insert("koko", info.size());
+    map.insert("nimi", kp()->asetukset()->nimi());
+    map.insert("ytunnus", kp()->asetukset()->ytunnus());
+
+    Tilikausi kausi = kp()->tilikaudet()->tilikausiPaivalle(QDate::currentDate());
+    if (kausi.alkaa().isValid()) {
+        QVariantMap kausimap;
+        kausimap.insert("alkaa", kausi.alkaa().toString(Qt::ISODate));
+        kausimap.insert("loppuu", kausi.paattyy().toString(Qt::ISODate));
+        map.insert("tilikausi", kausimap);
+    }
 
     QSqlQuery kysely(db());
     kysely.exec("SELECT COUNT(id) FROM Tosite");
@@ -47,5 +57,4 @@ QVariant InfoRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
         map.insert("tyolista", kysely.value(0).toInt());
 
     return map;
-
 }
