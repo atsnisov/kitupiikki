@@ -72,7 +72,8 @@ QString TositeRoute::kysymys(const QUrlQuery &urlquery)
     if( urlquery.hasQueryItem("viite"))
         ehdot.append( QString("tosite.viite = '%1'").arg(urlquery.queryItemValue("viite").remove(QRegularExpression("\\W")).remove("^0+")));
 
-
+    if( urlquery.hasQueryItem("huomio"))
+        ehdot.append( "( (Tosite.json LIKE '%\"huomio\":true%') OR (tq.tilioimatta > 0) )" );
 
 
     QString jarjestys = "pvm";
@@ -86,10 +87,11 @@ QString TositeRoute::kysymys(const QUrlQuery &urlquery)
         jarjestys = "otsikko";
 
     QString kysymys = "SELECT tosite.id AS id, tosite.pvm AS pvm, tyyppi, tila, tunniste, otsikko, kumppani.nimi as kumppani, "
-                      "tosite.sarja as sarja, liitteita, summa "
+                      "tosite.sarja as sarja, liitteita, summa, Tosite.json AS json, tq.tilioimatta AS tilioimatta "
                       " FROM Tosite LEFT OUTER JOIN Kumppani on tosite.kumppani=kumppani.id  "
                       " LEFT OUTER JOIN (SELECT tosite, COUNT(id) AS liitteita FROM Liite GROUP BY tosite) AS lq ON tosite.id=lq.tosite "
                       " LEFT OUTER JOIN (SELECT tosite, SUM(debetsnt) / 100.0 AS summa FROM Vienti GROUP BY tosite) as sq ON tosite.id=sq.tosite "
+                      " LEFT OUTER JOIN (SELECT tosite, COUNT(id) AS tilioimatta FROM Vienti WHERE (tili=0 OR tili IS NULL) GROUP BY tosite) as tq ON tosite.id=tq.tosite "
                       "WHERE ";
     kysymys.append( ehdot.join(" AND ") + QString(" ORDER BY ") + jarjestys );
     return kysymys;

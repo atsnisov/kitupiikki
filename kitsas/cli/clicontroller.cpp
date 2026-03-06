@@ -47,7 +47,7 @@ void CLIController::execute(const QString &command, const QString &data)
         payload = doc.toVariant();
     }
 
-    KpKysely *kysely = kp()->sqlite()->kysely(path, method);
+    KpKysely *kysely = kp()->yhteysModel() ? kp()->yhteysModel()->kysely(path, method) : nullptr;
     if (!kysely) {
         exitWithError(404, "Could not create query for path: " + path);
         return;

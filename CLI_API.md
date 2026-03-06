@@ -1,76 +1,92 @@
-# Kitsas CLI: Headless Bookkeeping API Specification
+# Kitsas CLI: Professional Bookkeeping API for LLM Agents
 
-Kitsas now supports a headless CLI mode designed for LLM-driven bookkeeping. This allows an external agent to read the Chart of Accounts, browse transactions, and record new entries using structured JSON.
+This document defines the interface for interacting with the Kitsas bookkeeping engine via the command line. It is designed for LLM agents to perform automated bookkeeping, auditing, and reporting.
 
 ## 1. Execution Model
-The CLI uses the same internal "Route API" as the graphical interface, ensuring all business logic and validations are preserved.
+
+Kitsas CLI acts as a bridge to the internal SQLite-based bookkeeping engine. All commands require a path to a Kitsas SQLite database file.
 
 **Command Syntax:**
 ```bash
 ./kitsas --command "[METHOD] [PATH]" --data '[JSON_PAYLOAD]' [PATH_TO_SQLITE_FILE]
 ```
 
-- **METHOD:** GET, POST, PUT, PATCH, DELETE (Defaults to GET if omitted).
-- **PATH:** The internal resource path (e.g., `tilit`, `tositteet`).
-- **--data:** (Optional) A JSON string containing the request payload.
-- **Output:** Returns a JSON object to `stdout`. Errors are returned as JSON to `stderr`.
+- **METHOD:** GET (default), POST, PUT, PATCH, DELETE.
+- **PATH:** Resource path (e.g., `tilit`, `tositteet`). Can include query parameters.
+- **--data:** JSON-formatted payload for POST, PUT, and PATCH requests.
+- **Output:** Structured JSON to `stdout`.
+- **Errors:** JSON error objects to `stderr` with non-zero exit codes.
 
 ---
 
-## 2. Core API Routes for LLMs
+## 2. Core Resources
 
 ### A. Chart of Accounts (`GET tilit`)
-Fetch the list of accounts to understand where to categorize transactions.
-- **Command:** `./kitsas --command "GET tilit" ledger.sqlite`
-- **Output:** A list of account objects containing `numero` (account number), `nimi` (name), and `tyyppi` (type).
+Fetch the list of accounts to identify where to categorize transactions.
+- **Fields:** `numero` (ID), `nimi` (Name), `tyyppi` (Type).
+- **Strategy:** Always fetch this first to map user intent to valid account numbers.
 
-### B. Vouchers / Transactions (`GET tositteet`)
-Browse existing transactions. Supports query parameters for filtering.
-- **Command:** `./kitsas --command "GET tositteet?alkaa=2024-01-01&loppuu=2024-03-31" ledger.sqlite`
-- **Query Params:** `alkaa` (start date), `loppuu` (end date), `tila` (status).
+### B. Vouchers and Transactions (`/tositteet`)
 
-### C. Create a Transaction (`POST tositteet`)
-Record a new bookkeeping entry.
-- **Command:** `./kitsas --command "POST tositteet" --data '{...}' ledger.sqlite
-- **Payload Structure:**
-  ```json
-  {
-    "pvm": "2024-03-05",
-    "otsikko": "Office Supplies",
-    "viennit": [
-      {
-        "tili": 3000,
-        "selite": "Paper and Pens",
-        "debet": 124.00,
-        "alvkoodi": 1
-      },
-      {
-        "tili": 1910,
-        "kredit": 124.00
-      }
-    ]
-  }
-  ```
-  *Note: Amounts are handled in Euros as decimals or strings (e.g., 124.00 = 124.00€).*
+#### List Vouchers (`GET tositteet`)
+Browse existing entries.
+- **Query Parameters:**
+  - `alkaa` / `loppuu`: Date range (YYYY-MM-DD).
+  - `huomio=1`: **(CRITICAL)** Filters for vouchers requiring attention (missing entries or manual flags).
+  - `luonnos=1`, `saapuneet=1`: Filter by status.
+- **Response Fields:**
+  - `id`: Internal voucher ID.
+  - `tilioimatta`: Number of entries (viennit) missing an account number (tili=0).
+  - `json`: Metadata containing the `huomio` flag and other details.
 
-### D. Settings and Info (`GET info`)
-Retrieve metadata about the bookkeeping, such as the organization name and current fiscal year status.
-- **Command:** `./kitsas --command "GET info" ledger.sqlite`
+#### Get Detailed Voucher (`GET tositteet/ID`)
+Fetch a single voucher with all its accounting entries (`viennit`).
+- **Entry Fields:** `tili`, `selite`, `debet`, `kredit`, `alvkoodi`, `alvprosentti`.
 
----
-
-## 3. Error Handling
-If a command fails (e.g., unbalanced debits/credits or locked period), the CLI returns a non-zero exit code and a JSON error object:
-
+#### Create Voucher (`POST tositteet`)
+Record a new transaction.
 ```json
 {
-  "code": 400,
-  "message": "Debet ja kredit eivät täsmää"
+  "pvm": "2024-03-05",
+  "otsikko": "Office Supplies",
+  "viennit": [
+    { "tili": 3000, "selite": "Paper", "debet": "50.00", "alvkoodi": 1 },
+    { "tili": 1910, "kredit": "50.00" }
+  ]
 }
 ```
 
-## 4. LLM Implementation Strategy
-1.  **Discovery:** Call `GET info` and `GET tilit` to map the environment.
-2.  **Verification:** Call `GET tositteet` to check if a transaction (like a specific invoice) has already been recorded.
-3.  **Action:** Formulate a `POST tositteet` JSON payload based on the user's natural language input and the discovered account numbers.
-4.  **Confirmation:** Parse the CLI output to confirm the transaction was assigned an ID and valid voucher number.
+#### Update Voucher (`PUT tositteet/ID`)
+Modify an existing voucher. Useful for fixing missing account numbers discovered via the `huomio` filter.
+
+#### Delete Voucher (`DELETE tositteet/ID`)
+Remove a voucher from the ledger.
+
+---
+
+## 3. The "AI Accountant" Workflow
+
+To perform automated bookkeeping, the LLM agent should follow this protocol:
+
+1.  **Auditing:** Run `GET tositteet?huomio=1` to find "To-Do" items.
+2.  **Inspection:** For each result, run `GET tositteet/ID` to see exactly what is missing (e.g., a row where `tili` is 0).
+3.  **Contextual Mapping:** Run `GET tilit` to find the most appropriate account for the unallocated entry based on its `selite` (description) or partner name.
+4.  **Correction:** Use `PUT tositteet/ID` with the corrected `viennit` array to finalize the entry.
+5.  **Verification:** Re-run the audit to ensure the `tilioimatta` count for that ID is now 0.
+
+---
+
+## 4. Technical Constraints
+
+- **Amounts:** Handled as strings or decimals (e.g., `"12.50"`). Internally converted to cents.
+- **Statuses:** 
+  - `0`: Deleted
+  - `1-49`: Templates/Saapuneet
+  - `50-99`: Drafts (Luonnokset)
+  - `100+`: Finalized in ledger (Kirjanpidossa)
+- **VAT:** `alvkoodi` refers to the internal VAT mapping. `alvprosentti` is the tax rate as a float.
+
+## 5. Error Codes
+- `400`: Validation error (e.g., debits do not match credits).
+- `404`: Resource not found.
+- `403`: Period locked or insufficient permissions.
