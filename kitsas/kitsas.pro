@@ -27,6 +27,13 @@ windows {
 
 macx {
     QMAKE_XCODE_ATTRIBUTE[ALWAYS_SEARCH_USER_PATHS] = NO
+    
+    DEFINES += USE_ZIPLIB
+    INCLUDEPATH += /opt/homebrew/opt/libzip/include
+    LIBS += -L/opt/homebrew/opt/libzip/lib -lzip
+    
+    INCLUDEPATH += /opt/homebrew/opt/openssl/include
+    LIBS += -L/opt/homebrew/opt/openssl/lib -lcrypto -lssl
 }
 
 
