@@ -88,7 +88,9 @@ int main(int argc, char *argv[])
         a.setProperty("command", true);
         
         // CLI-tilassa katsotaan pitääkö avata tiedosto
-        if (!parser.positionalArguments().isEmpty() && QFile(parser.positionalArguments().value(0)).exists()) {
+        if (parser.isSet("pro")) {
+            // Pro-tilassa ei tarvita paikallista tiedostoa
+        } else if (!parser.positionalArguments().isEmpty() && QFile(parser.positionalArguments().value(0)).exists()) {
              kirjanpito.sqlite()->avaaTiedosto(parser.positionalArguments().value(0));
         } else {
             std::cerr << "Virhe: Tietokantatiedosto puuttuu tai sitä ei löydy." << std::endl;
