@@ -1,170 +1,107 @@
-/*
-   Copyright (C) 2017 Arto Hyvättinen
-
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
-
 #include <QApplication>
-#include <QGuiApplication>
+#include <QCommandLineParser>
+#include <QLocale>
+#include <QTranslator>
+#include <QSettings>
 #include <QSplashScreen>
-#include <QIcon>
-#include <QFontDatabase>
+#include <QDir>
 #include <QFont>
+#include <QFontDatabase>
 
+#include "versio.h"
 #include "db/kirjanpito.h"
 #include "sqlite/sqlitemodel.h"
-
 #include "kitupiikkiikkuna.h"
-#include "versio.h"
 #include "kieli/kielet.h"
-
-#include <QDebug>
-
-#include <QStyleFactory>
-#include <QSettings>
-
-#include <QFileInfo>
-#include <QCommandLineParser>
-#include <QtEnvironmentVariables>
-
 #include "aloitussivu/tervetulodialogi.h"
+#include "pilvi/pilvikayttaja.h"
 #include "maaritys/ulkoasumaaritys.h"
 #include "pilvi/pilvimodel.h"
 
 #include "tools/kitsaslokimodel.h"
 #include "aloitussivu/toffeelogin.h"
+#include "aloitussivu/loginservice.h"
 #include "cli/clicontroller.h"
 #include <QTimer>
 #include <iostream>
+#include <termios.h>
+#include <unistd.h>
 
 #include "laskutus/laskunuusinta.h"
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
+    a.setApplicationName("Kitsas");
+    a.setOrganizationName("Kitsas");
     a.setApplicationVersion(KITSAS_VERSIO);
-    a.setOrganizationDomain("kitsas.fi");
-    a.setOrganizationName("Kitsas oy");
 
-#if defined (Q_OS_LINUX)
-    qputenv("QTWEBENGINE_CHROMIUM_FLAGS","--disable-gpu");
-#endif
-
-    KitsasLokiModel::alusta();  
-
-#if defined (Q_OS_WIN) || defined (Q_OS_MACX)
-    a.setStyle(QStyleFactory::create("Fusion"));
-#else
-    // #120 GNOME-ongelmien takia ei käytetä Linuxissa natiiveja dialogeja
-    a.setAttribute(Qt::AA_DontUseNativeDialogs);
-#endif
-        
     QCommandLineParser parser;
-    parser.addOptions({
-                          {"api",
-                           "Pilvipalvelun osoite",
-                           "url",
-                           KITSAS_API},
-                          {"log",
-                          "Lokitiedosto",
-                          "tiedostopolku",
-                          QString()},
-                          {"pro",
-                          "Kirjautuminen suoraan pilveen"},
-                           {"demo",
-                           "Demo-tila"},
-                            {"noweb","Käytä aina ulkoista selainta"},
-                          {"command", "Suorita komento ja poistu", "komento"},
-                          {"data", "Komennon data JSON-muodossa", "json"}
-                      });
+    parser.setApplicationDescription("Kitsas - Professional Bookkeeping");
+    parser.addHelpOption();
     parser.addVersionOption();
+
+    QCommandLineOption proOption("pro", "Run in Pro mode");
+    parser.addOption(proOption);
+
+    QCommandLineOption demoOption("demo", "Run in Demo mode");
+    parser.addOption(demoOption);
+
+    QCommandLineOption apiOption("api", "Run in API mode");
+    parser.addOption(apiOption);
+
+    QCommandLineOption commandOption("command", "Execute a CLI command", "command");
+    parser.addOption(commandOption);
+
+    QCommandLineOption dataOption("data", "JSON data for CLI command", "data");
+    parser.addOption(dataOption);
+
+    parser.addPositionalArgument("file", "Database file to open");
+
     parser.process(a);
 
-    a.setApplicationName( parser.isSet("pro") || PRO_VERSIO ? "Kitsas Pro" : "Kitsas");
-#ifndef Q_OS_MACX
-    a.setWindowIcon( parser.isSet("pro") || PRO_VERSIO ? QIcon(":/pic/propossu-64.png") : QIcon(":/pic/Possu64.png") );
-#endif
+    if (parser.isSet("pro") || parser.isSet("api")) {
+        PilviKayttaja::asetaVersioMoodi(PilviKayttaja::PRO);
+    }
 
+    PilviModel::asetaPilviLoginOsoite(KITSAS_API);
+
+#if defined (Q_OS_WIN) || defined (Q_OS_MACX)
+    QString portableDir = QCoreApplication::applicationDirPath() + "/data";
+    if (QDir(portableDir).exists()) {
+        a.setProperty("portable", portableDir);
+    }
+#endif
 
     Kielet::alustaKielet(":/tr/tulkki.json");
 
-    PilviModel::asetaPilviLoginOsoite( parser.value("api") );
-    KitsasLokiModel::setLoggingToFile( parser.value("log") );
-    a.setProperty("noweb", parser.isSet("noweb"));
-
-    QStringList argumentit = qApp->arguments();
-
-    // Windowsin asentamattomalla versiolla
-    // asetukset kirjoitetaan kitupiikki.ini -tiedostoon
-
-#if defined  (Q_OS_WIN) && defined (KITSAS_PORTABLE)
-
-    QFileInfo info(argumentit.at(0));
-    QString polku = info.absoluteDir().absolutePath();
-
-    Kirjanpito kirjanpito(polku);
-#else
     Kirjanpito kirjanpito;
-#endif
+    // Kirjanpito-olio asettaa instanssi__:n itse constructorissaan (päivitetty koodi)
 
-    Kirjanpito::asetaInstanssi(&kirjanpito);
-
-#if defined (Q_OS_WIN)
-    // Kierretään Qt:n bugi resurssitiedostosta ladattujen fonttien käytössä
-    // PDF-tiedostoa luotaessa kopioimalla fontti ensin tilapäistiedostoon
-
-    QTemporaryDir dir;
-
-    if (dir.isValid())    {
-
-        dir.setAutoRemove(true);
-
-        QString tempPolku = dir.path();
-
-        QString sansPolku = tempPolku + "/FreeSans.ttf";
-        QFile::copy(":/aloitus/FreeSans.ttf",sansPolku);
-        QFontDatabase::addApplicationFont(sansPolku);
-
-        QString monoPolku = tempPolku + "/FreeMono.ttf";
-        QFile::copy(":/aloitus/FreeMono.ttf", monoPolku);
-        QFontDatabase::addApplicationFont(monoPolku);
-
-        QString code128Polku = tempPolku + "/code128_XL.ttf";
-        QFile::copy(":/lasku/code128_XL.ttf", code128Polku);
-        QFontDatabase::addApplicationFont(code128Polku);
-    }
-
-    else
-
-    {
-        QFontDatabase::addApplicationFont(":/aloitus/FreeSans.ttf");
-        QFontDatabase::addApplicationFont(":/aloitus/FreeMono.ttf");
-        QFontDatabase::addApplicationFont(":/lasku/code128_XL.ttf");
-    }
-#else
-
-    QFontDatabase::addApplicationFont(":/aloitus/FreeSans.ttf");
-    QFontDatabase::addApplicationFont(":/aloitus/FreeMono.ttf");
-    QFontDatabase::addApplicationFont(":/lasku/code128_XL.ttf");
-
-#endif
-
-    // Fonttimääritykset
-    UlkoasuMaaritys::oletusfontti__ = a.font();
     QString fonttinimi = kp()->settings()->value("Fontti").toString();
     if( !fonttinimi.isEmpty()) {
         a.setFont( QFont( fonttinimi, kp()->settings()->value("FonttiKoko").toInt()) );
+    }
+
+    if (parser.isSet("command")) {
+        a.setProperty("command", true);
+        
+        // CLI-tilassa katsotaan pitääkö avata tiedosto
+        if (!parser.positionalArguments().isEmpty() && QFile(parser.positionalArguments().value(0)).exists()) {
+             kirjanpito.sqlite()->avaaTiedosto(parser.positionalArguments().value(0));
+        } else {
+            std::cerr << "Virhe: Tietokantatiedosto puuttuu tai sitä ei löydy." << std::endl;
+            return 1;
+        }
+
+        CLIController *cli = new CLIController(&a);
+        std::cout << "Käynnistetään CLI-ohjaus..." << std::endl;
+        QTimer::singleShot(0, [cli, &parser]() {
+            std::cout << "Suoritetaan komento: " << parser.value("command").toStdString() << std::endl;
+            cli->execute(parser.value("command"), parser.value("data"));
+        });
+        return a.exec();
     }
 
     if( parser.isSet("pro") ||  PRO_VERSIO ) {
@@ -179,23 +116,8 @@ int main(int argc, char *argv[])
             return 0;
         kp()->settings()->setValue("ViimeksiVersiolla", a.applicationVersion());
     }
+    
     a.setProperty("demo", parser.isSet("demo"));
-
-    if (parser.isSet("command")) {
-        // Avaa argumenttina olevan tiedostonnimen
-        if (!parser.positionalArguments().isEmpty() && QFile(parser.positionalArguments().value(0)).exists()) {
-             kirjanpito.sqlite()->avaaTiedosto(parser.positionalArguments().value(0));
-        } else {
-            std::cerr << "Virhe: Tietokantatiedosto puuttuu tai sitä ei löydy." << std::endl;
-            return 1;
-        }
-
-        CLIController *cli = new CLIController(&a);
-        QTimer::singleShot(0, [cli, &parser]() {
-            cli->execute(parser.value("command"), parser.value("data"));
-        });
-        return a.exec();
-    }
 
     QSplashScreen *splash = new QSplashScreen;
     splash->setPixmap( QPixmap(":/pic/splash_" + Kielet::instanssi()->uiKieli() + ".png"));

@@ -77,13 +77,12 @@ Kirjanpito::Kirjanpito(const QString& portableDir) :
     alvIlmoitukset_( new AlvIlmoitustenModel(this)),
     vakioviitteet_( new VakioViiteModel(this)),    
     huoneistot_( new HuoneistoModel(this)),
-    raporttiValinnat_( new RaporttiValinnat),
-    liiteCache_(new LiiteCache(this, this)),
+    raporttiValinnat_( nullptr),
+    liiteCache_(nullptr),
     printer_(new QPrinter(QPrinter::HighResolution)),
     tempDir_(new QTemporaryDir(QDir::temp().absoluteFilePath("kitsas-XXXXXX"))),
     portableDir_(portableDir),
     networkManager_(new QNetworkAccessManager(this)),
-    pilviModel_(new PilviModel(this)),
     sqliteModel_( new SQLiteModel(this)),
     yhteysModel_(nullptr),        
     tositeTyypit_( new TositeTyyppiModel(this)),
@@ -91,6 +90,10 @@ Kirjanpito::Kirjanpito(const QString& portableDir) :
     toiminimiModel_( new ToiminimiModel(this)),
     bannerit_( new BannerModel(this))
 {
+    instanssi__ = this;
+    pilviModel_ = new PilviModel(this);
+    raporttiValinnat_ = new RaporttiValinnat();
+    liiteCache_ = new LiiteCache(this, this);
     if( portableDir.isEmpty())
         settings_ = new QSettings(this);
     else
@@ -121,7 +124,7 @@ Kirjanpito::Kirjanpito(const QString& portableDir) :
 
     FinvoiceHaku* verkkolaskuhaku = FinvoiceHaku::init(this);
     connect( this, &Kirjanpito::tietokantaVaihtui, verkkolaskuhaku, &FinvoiceHaku::haeUudet);
-    connect( pilvi(), &PilviModel::kirjauduttu, verkkolaskuhaku, &FinvoiceHaku::haeUudet);
+    connect( pilviModel_, &PilviModel::kirjauduttu, verkkolaskuhaku, &FinvoiceHaku::haeUudet);
 
     connect( this, &Kirjanpito::tietokantaVaihtui, vakioviitteet_, &VakioViiteModel::lataa);
     connect( this, &Kirjanpito::tietokantaVaihtui, liiteCache_, &LiiteCache::tyhjenna);
@@ -319,9 +322,9 @@ QString Kirjanpito::kaanna(const QString &teksti, const QString &kieli) const
 }
 
 void Kirjanpito::odotusKursori(bool on)
-{    
-    if(on && !waitCursor_) {
-        waitCursor_ = true;
+{
+    if (qApp->property("command").toBool()) return;
+    if(on && !waitCursor_) {        waitCursor_ = true;
         qApp->setOverrideCursor(QCursor(Qt::WaitCursor));
     } else if(!on && waitCursor_) {
         waitCursor_ = false;

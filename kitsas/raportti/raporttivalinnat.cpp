@@ -8,13 +8,15 @@
 RaporttiValinnat::RaporttiValinnat()
 {
     aseta(Kohdennuksella, -1);
-    aseta(Kieli, Kielet::instanssi()->nykyinen());
+    QString kieli = Kielet::instanssi() ? Kielet::instanssi()->nykyinen() : "fi";
+    aseta(Kieli, kieli);
 }
 
 RaporttiValinnat::RaporttiValinnat(const QString &tyyppi)
 {
     aseta(Kohdennuksella, -1);
-    aseta(Kieli, Kielet::instanssi()->nykyinen());
+    QString kieli = Kielet::instanssi() ? Kielet::instanssi()->nykyinen() : "fi";
+    aseta(Kieli, kieli);
     if( tyyppi.contains("/")) {
         const int kautta = tyyppi.indexOf('/');
         aseta(Tyyppi, tyyppi.left(kautta));

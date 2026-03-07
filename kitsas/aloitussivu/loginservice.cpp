@@ -1,3 +1,4 @@
+#include <iostream>
 #include "loginservice.h"
 #include "db/kirjanpito.h"
 #include "pilvi/pilvimodel.h"
@@ -28,7 +29,9 @@ LoginService::LoginService(QWidget *parent)
     : QObject{parent}
 {
     connect( kp()->pilvi(), &PilviModel::kirjauduttu, this, &LoginService::kirjauduttu);
-    connect( kp()->pilvi()->paivitysInfo(), &PaivitysInfo::verkkovirhe, this, &LoginService::verkkovirhe);   
+    if (kp()->pilvi()->paivitysInfo()) {
+        connect( kp()->pilvi()->paivitysInfo(), &PaivitysInfo::verkkovirhe, this, &LoginService::verkkovirhe);
+    }
 }
 
 void LoginService::registerWidgets(QLineEdit *emailEdit, QLineEdit *passwordEdit, QLabel *messageLabel, QCheckBox *rememberBox,
@@ -183,18 +186,31 @@ void LoginService::loginVastaus()
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
     if( status == 401) {
-        messageLabel_->setText(tr("Virheellinen salasana"));
-        messageLabel_->setStyleSheet("color: red;");
-        messageLabel_->show();
-        passwordEdit_->clear();
+        if (qApp->property("command").toBool()) {
+            std::cout << "Virhe: Virheellinen salasana." << std::endl;
+        }
+        if (messageLabel_) {
+            messageLabel_->setText(tr("Virheellinen salasana"));
+            messageLabel_->setStyleSheet("color: red;");
+            messageLabel_->show();
+        }
+        if (passwordEdit_) passwordEdit_->clear();
         return;
     }
 
     if( status != 200) {
-        QMessageBox::critical(myParent, tr("Virhe kirjautumisessa"),
-                              tr("Palvelin ilmoitti virheen %1").arg(status));
+        if (qApp->property("command").toBool()) {
+            std::cout << "Virhe: Palvelin vastasi statuskoodilla " << status << std::endl;
+        } else {
+            QMessageBox::critical(myParent, tr("Virhe kirjautumisessa"),
+                                  tr("Palvelin ilmoitti virheen %1").arg(status));
+        }
 
         return;
+    }
+
+    if (qApp->property("command").toBool()) {
+        std::cout << "Kirjautuminen onnistui." << std::endl;
     }
 
     QByteArray vastaus = reply->readAll();
@@ -217,11 +233,24 @@ void LoginService::loginVastaus()
     }
 }
 
+#include <iostream>
+
 void LoginService::request2fa(const QVariantMap &map)
 {
-    QWidget* myParent = qobject_cast<QWidget*>(parent());
-    KaksivaiheDialog dlg(myParent);
-    const QString code = dlg.askCode( map.value("name").toString() );
+    QString code;
+    if (qApp->property("command").toBool()) {
+        std::cout << "Kaksivaiheinen tunnistautuminen (2FA) vaaditaan käyttäjälle: " 
+                  << map.value("name").toString().toStdString() << std::endl;
+        std::cout << "Syötä 2FA-koodi: ";
+        std::string input;
+        std::cin >> input;
+        code = QString::fromStdString(input);
+    } else {
+        QWidget* myParent = qobject_cast<QWidget*>(parent());
+        KaksivaiheDialog dlg(myParent);
+        code = dlg.askCode( map.value("name").toString() );
+    }
+
     if( !code.isEmpty()) {
         QVariantMap tmap;
         tmap.insert("code", code);
@@ -246,13 +275,24 @@ void LoginService::verkkovirhe(QNetworkReply::NetworkError virhe)
 
     qWarning() << "LoginService verkkovirhe " << virhe << " " << txt;
 
-    messageLabel_->setText(QString("<b>%1</b>").arg(txt));
-    messageLabel_->setStyleSheet("background-color: yellow; color: black;");
-    messageLabel_->show();
+    if (qApp->property("command").toBool()) {
+        std::cout << "Verkkovirhe: " << txt.toStdString() << std::endl;
+        return;
+    }
+
+    if (messageLabel_) {
+        messageLabel_->setText(QString("<b>%1</b>").arg(txt));
+        messageLabel_->setStyleSheet("background-color: yellow; color: black;");
+        messageLabel_->show();
+    }
 }
 
 void LoginService::vaihtoLahti()
 {
+    if (qApp->property("command").toBool()) {
+        std::cout << "Salasanan palautuslinkki lähetetty." << std::endl;
+        return;
+    }
     QWidget* myParent = qobject_cast<QWidget*>(parent());
     QNetworkReply *reply = qobject_cast<QNetworkReply*>( sender());
     if( reply->error()) {
@@ -284,7 +324,12 @@ void LoginService::auth(QVariantMap map)
 
     QNetworkAccessManager *mng = kp()->networkManager();
 
-    QNetworkRequest request(QUrl( kp()->pilvi()->pilviLoginOsoite() + "/auth") );
+    QString urlStr = kp()->pilvi()->pilviLoginOsoite() + "/auth";
+    if (qApp->property("command").toBool()) {
+        std::cout << "Auth URL: " << urlStr.toStdString() << std::endl;
+    }
+    QNetworkRequest request;
+    request.setUrl(QUrl( urlStr ));
     request.setRawHeader("Content-Type","application/json");
     request.setRawHeader("User-Agent",QString(qApp->applicationName() + " " + qApp->applicationVersion() ).toLatin1());
 

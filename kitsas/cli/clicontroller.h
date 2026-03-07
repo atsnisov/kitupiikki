@@ -27,12 +27,16 @@ private slots:
     void handleResponse(QVariant* reply);
     void handleAdditionResponse(const QVariant& reply, int id);
     void handleError(int code, const QString& explanation);
+    void doExecute();
 
 private:
     void printResult(const QVariant& result);
     void exitWithError(int code, const QString& message);
 
     KpKysely::Metodi parseMethod(const QString& methodStr);
+
+    QString command_;
+    QString data_;
 };
 
 #endif // CLICONTROLLER_H

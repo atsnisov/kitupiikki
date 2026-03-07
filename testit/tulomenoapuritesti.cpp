@@ -296,7 +296,7 @@ void TulomenoApuriTesti::verollinenTuloKirjausWglla()
 
 void TulomenoApuriTesti::verollinenTuloKirjausSivulla()
 {
-    KirjausSivu* sivu = new KirjausSivu(nullptr, nullptr);
+    KirjausSivu* sivu = new KirjausSivu(nullptr);
 
     KirjausWg *kwg = sivu->findChild<KirjausWg*>("kirjausWg");
     QVERIFY( kwg != nullptr);
@@ -328,7 +328,7 @@ void TulomenoApuriTesti::verollinenTuloKirjausSivulla()
 
 void TulomenoApuriTesti::menonMuodostusTesti()
 {
-    KirjausSivu* sivu = new KirjausSivu(nullptr, nullptr);
+    KirjausSivu* sivu = new KirjausSivu(nullptr);
     sivu->show();
 
     KirjausWg *kwg = sivu->findChild<KirjausWg*>("kirjausWg");
@@ -385,7 +385,7 @@ void TulomenoApuriTesti::menonMuodostusTesti()
 
 void TulomenoApuriTesti::kateisSarjaan()
 {
-    KirjausSivu* sivu = new KirjausSivu(nullptr, nullptr);
+    KirjausSivu* sivu = new KirjausSivu(nullptr);
     sivu->show();
 
     KirjausWg *kwg = sivu->findChild<KirjausWg*>("kirjausWg");

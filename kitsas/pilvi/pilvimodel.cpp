@@ -188,7 +188,7 @@ void PilviModel::paivitaPilviToken(QVariant *data)
 
 void PilviModel::avaaPilvesta(int pilviId, bool siirrossa)
 {
-    if(!siirrossa && !progressDialog_) {
+    if(!siirrossa && !progressDialog_ && !qApp->property("command").toBool()) {
         kp()->odotusKursori(true);
         progressDialog_ = new QProgressDialog( tr("Kirjanpitoa avataan..."), tr("Keskeytä"), 0, 100, qApp->activeWindow());
         connect( progressDialog_, &QProgressDialog::canceled, this, &PilviModel::keskeytaLataus);

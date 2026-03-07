@@ -23,6 +23,7 @@ public:
                           QLabel* passwordLabel);
 
     void keyLogin();
+    void auth(QVariantMap map);
 
     static QString verkkovirheteksti(QNetworkReply::NetworkError virhe, const QString &virheTeksti);
 
@@ -46,9 +47,6 @@ private:
     void vaihtoLahti();
 
     void kirjauduttu(PilviKayttaja kayttaja);
-
-    void auth(QVariantMap map);
-
 
 
 protected:
