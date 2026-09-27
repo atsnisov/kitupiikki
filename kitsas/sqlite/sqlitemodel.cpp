@@ -57,6 +57,20 @@
 
 #include <QPalette>
 
+namespace {
+
+// Komentorivitilassa (--command) dialogia ei voi näyttää, joten virhe
+// kirjataan lokiin (komentorivitilassa loki näkyy stderr:ssä)
+void naytaVirhe(const QString& otsikko, const QString& teksti)
+{
+    if( qApp->property("command").toBool())
+        qWarning().noquote() << otsikko + ": " + teksti;
+    else
+        QMessageBox::critical(nullptr, otsikko, teksti);
+}
+
+}
+
 SQLiteModel::SQLiteModel(QObject *parent)
     : YhteysModel(parent)
 {
@@ -161,7 +175,7 @@ bool SQLiteModel::avaaTiedosto(const QString &polku, bool ilmoitavirheestaAvatta
     {
         kp()->odotusKursori(false);
         if( ilmoitavirheestaAvattaessa ) {
-            QMessageBox::critical(nullptr, tr("Tietokannan avaaminen epäonnistui"),
+            naytaVirhe( tr("Tietokannan avaaminen epäonnistui"),
                                   tr("Tietokannan %1 avaaminen epäonnistui tietokantavirheen %2 takia")
                                   .arg( polku ).arg( tietokanta().lastError().text() ) );
         }
@@ -186,20 +200,20 @@ bool SQLiteModel::avaaTiedosto(const QString &polku, bool ilmoitavirheestaAvatta
         {
             if( query.lastError().text().contains("locked"))
             {
-                QMessageBox::critical(nullptr, tr("Kirjanpitoa ei voi avata"),
+                naytaVirhe( tr("Kirjanpitoa ei voi avata"),
                                       tr("Kirjanpitotiedosto %1 on jo käytössä.\n\n"
                                          "Sulje kaikki Kitsas-ohjelman ikkunat ja yritä uudelleen.\n\n"
                                          "Ellei tämä auta, käynnistä tietokoneesi uudelleen.").arg(polku));
             }
             else if( query.lastError().text().contains("no such table: Asetus") ) {
-                QMessageBox::critical(nullptr,
+                naytaVirhe(
                                       tr("Kirjanpitoa ei voi avata"),
                                       tr("Kirjanpitotiedosto %1 on todennäköisesti vahingoittunut joko tiedostojärjestelmän virheen tai levyvirheen takia, tai tiedosto ei ole Kitsaan kirjanpitotiedosto.").arg(polku) + "\n\n" +
                                       tr("Ellei tietokoneen uudelleen käynnistäminen auta, ota käyttöön kirjanpitosi varmuuskopio."));
             }
             else
             {
-                QMessageBox::critical(nullptr,
+                naytaVirhe(
                                       tr("Kirjanpitoa ei voi avata"),
                                       tr("Tiedostoa %1 ei voi avata").arg(polku) + "\n" +
                                       tr("Sql-virhe: %1").arg(query.lastError().text()));
@@ -213,7 +227,7 @@ bool SQLiteModel::avaaTiedosto(const QString &polku, bool ilmoitavirheestaAvatta
         int versio = query.value(0).toInt();
         if( versio > TIETOKANTAVERSIO) {
             kp()->odotusKursori(false);
-            QMessageBox::critical(nullptr, tr("Kirjanpitoa %1 ei voi avata").arg(polku),
+            naytaVirhe( tr("Kirjanpitoa %1 ei voi avata").arg(polku),
                                   tr("Kirjanpito on luotu uudemmalla Kitsaan versiolla, eikä käytössäsi oleva versio %1 pysty avaamaan sitä.\n\n"
                                      "Voidaksesi avata tiedoston, sinun on asennettava uudempi versio Kitsaasta. Lataa ohjelma "
                                      "osoitteesta https://kitsas.fi")
@@ -222,6 +236,13 @@ bool SQLiteModel::avaaTiedosto(const QString &polku, bool ilmoitavirheestaAvatta
             return false;
         } else if( versio < TIETOKANTAVERSIO) {
             kp()->odotusKursori(false);
+            // Komentoriviltä ei päivitetä kirjanpitoa kysymättä
+            if( qApp->property("command").toBool()) {
+                naytaVirhe( tr("Kirjanpitoa %1 ei voi avata").arg(polku),
+                            tr("Kirjanpito pitää päivittää uudempaan muotoon. Avaa se ensin Kitsaalla."));
+                tietokanta_.close();
+                return false;
+            }
             if(QMessageBox::question(nullptr, tr("Kirjanpidon päivittäminen"),
                                      tr("Avataksesi kirjanpidon pitää se päivittää yhteensopivaksi nykyisen version kanssa. Päivityksen jälkeen kirjanpitoa ei voi enää avata varhaisemmilla esiversioilla. "
                                         "\nPäivitetäänkö kirjanpito nyt?"), QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel)!= QMessageBox::Yes) {
@@ -265,7 +286,7 @@ bool SQLiteModel::avaaTiedosto(const QString &polku, bool ilmoitavirheestaAvatta
     } else {
         // Tämä ei ole lainkaan kelvollinen tietokanta
         kp()->odotusKursori(false);
-        QMessageBox::critical(nullptr, tr("Tiedostoa %1 ei voi avata").arg(polku),
+        naytaVirhe( tr("Tiedostoa %1 ei voi avata").arg(polku),
                               tr("Valitsemasi tiedosto ei ole Kitsaan tietokanta, tai tiedosto on vahingoittunut."));
         qWarning() << tietokanta_.lastError().text();
         tietokanta_.close();

@@ -26,6 +26,8 @@
 
 #include <QClipboard>
 
+#include <iostream>
+
 #include "db/kirjanpito.h"
 #include "pilvi/pilvimodel.h"
 
@@ -63,6 +65,10 @@ void KitsasLokiModel::alusta()
 void KitsasLokiModel::messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &message)
 {
     instanssi__->append( LokiRivi(type, context, message) );
+
+    // Komentorivitilassa (--command) varoitukset ja virheet näytetään myös stderr:ssä
+    if( type != QtDebugMsg && type != QtInfoMsg && qApp && qApp->property("command").toBool())
+        std::cerr << levelText(type).toStdString() << " " << message.toStdString() << std::endl;
 
     if( !instanssi__->filename_.isEmpty()) {
         QString fname = context.file;
