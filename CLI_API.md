@@ -11,11 +11,24 @@ Kitsas CLI acts as a bridge to the internal SQLite-based bookkeeping engine. All
 ./kitsas --command "[METHOD] [PATH]" --data '[JSON_PAYLOAD]' [PATH_TO_SQLITE_FILE]
 ```
 
-- **METHOD:** GET (default), POST, PUT, PATCH, DELETE.
+- **METHOD:** GET (default), POST, PUT, PATCH, DELETE. Other methods are rejected.
 - **PATH:** Resource path (e.g., `tilit`, `tositteet`). Can include query parameters.
-- **--data:** JSON-formatted payload for POST, PUT, and PATCH requests.
-- **Output:** Structured JSON to `stdout`.
-- **Errors:** JSON error objects to `stderr` with non-zero exit codes.
+- **--data:** JSON-formatted payload for POST, PUT, and PATCH requests, or `@path` to read it from a file (UTF-8, or UTF-8/UTF-16 with BOM). Use `@path` from Windows PowerShell 5.1, which strips double quotes from arguments passed to programs.
+
+**Output contract:**
+- `stdout` always contains exactly one JSON document:
+  - on success the route's result; a created resource (POST) is wrapped as `{"id": <id>, "data": <result>}`;
+  - on failure `{"code": <code>, "message": "<text>"}`.
+- Exit code `0` on success, `1` on failure.
+- `stderr` carries progress messages, prompts and warnings for humans. Do not parse it.
+
+**Windows:** `kitsas.exe` is a GUI program: a console shows none of its output and PowerShell does not wait for it. The Windows build therefore also ships `kitsas-cli.exe`, the same program marked as a console application. Use it for scripting.
+
+**Local files:**
+- The file is opened with `LOCKING_MODE = EXCLUSIVE`, so the command fails while the Kitsas GUI has the same file open.
+- Opening a file writes an "opened" timestamp to it, even for GET.
+- A file in an older database format is not upgraded from the command line. Open it once with the GUI first.
+- A command that gets no answer fails after 120 s (code 504).
 
 ---
 
@@ -45,6 +58,8 @@ Fetch a single voucher with all its accounting entries (`viennit`).
 
 #### Create Voucher (`POST tositteet`)
 Record a new transaction.
+
+> **The engine does not validate vouchers.** Balance (debit = credit), VAT splitting, account existence and locked periods are checked by the GUI, not by the routes. The command line accepts an unbalanced voucher. Callers must validate before posting. The example below only illustrates the shape: verify real field names and VAT codes by reading back a voucher created in the GUI (`GET tositteet/ID`).
 ```json
 {
   "pvm": "2024-03-05",
@@ -87,6 +102,8 @@ To perform automated bookkeeping, the LLM agent should follow this protocol:
 - **VAT:** `alvkoodi` refers to the internal VAT mapping. `alvprosentti` is the tax rate as a float.
 
 ## 5. Error Codes
-- `400`: Validation error (e.g., debits do not match credits).
-- `404`: Resource not found.
-- `403`: Period locked or insufficient permissions.
+- `400`: Bad command: empty command, unknown method, invalid JSON, unreadable `@file`.
+- `404`: Bookkeeping file or resource not found.
+- `500`: The file cannot be opened (see stderr for the reason), or a database error.
+- `504`: No answer within 120 s.
+- Other codes come from the routes. The routes do **not** report unbalanced vouchers (see above).
