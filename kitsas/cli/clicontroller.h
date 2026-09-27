@@ -17,6 +17,14 @@ public:
     explicit CLIController(QObject *parent = nullptr);
 
     /**
+     * @brief Opens the bookkeeping, runs one command and returns the exit code
+     * @param command Command string (e.g. "GET tilit" or "POST tositteet")
+     * @param data JSON data for POST/PUT/PATCH
+     * @param file Local bookkeeping file (not needed with --pro/--api)
+     */
+    int run(const QString& command, const QString& data, const QString& file);
+
+    /**
      * @brief Executes a command and exits the application
      * @param command Command string (e.g. "GET tilit" or "POST tositteet")
      * @param data JSON data for POST/PUT/PATCH
@@ -34,6 +42,7 @@ private:
     void exitWithError(int code, const QString& message);
 
     KpKysely::Metodi parseMethod(const QString& methodStr);
+    static bool isCloudMode();
 
     QString command_;
     QString data_;

@@ -21,22 +21,41 @@ CLIController::CLIController(QObject *parent) : QObject(parent)
 {
 }
 
+int CLIController::run(const QString &command, const QString &data, const QString &file)
+{
+    // Pilvitilassa ei tarvita paikallista tiedostoa
+    if (!isCloudMode()) {
+        if (file.isEmpty() || !QFile::exists(file)) {
+            std::cerr << "Virhe: Tietokantatiedosto puuttuu tai sitä ei löydy." << std::endl;
+            return 1;
+        }
+        if (!kp()->sqlite()->avaaTiedosto(file)) {
+            std::cerr << "Virhe: Tietokantatiedostoa ei voitu avata." << std::endl;
+            return 1;
+        }
+    }
+
+    std::cout << "Käynnistetään CLI-ohjaus..." << std::endl;
+    QTimer::singleShot(0, this, [this, command, data]() {
+        std::cout << "Suoritetaan komento: " << command.toStdString() << std::endl;
+        execute(command, data);
+    });
+    return QCoreApplication::exec();
+}
+
+bool CLIController::isCloudMode()
+{
+    const QStringList args = QCoreApplication::arguments();
+    return args.contains("--pro") || args.contains("--api");
+}
+
 void CLIController::execute(const QString &command, const QString &data)
 {
     std::cout << "CLIController::execute käynnistyy..." << std::endl;
     command_ = command;
     data_ = data;
 
-    // Tarkistetaan ollaanko pilvitilassa komentoriviparametrien perusteella
-    bool cloudMode = false;
-    for (const QString &arg : QCoreApplication::arguments()) {
-        if (arg == "--pro" || arg == "--api") {
-            cloudMode = true;
-            break;
-        }
-    }
-
-    if (cloudMode) {
+    if (isCloudMode()) {
         if (kp()->yhteysModel()) {
             std::cout << "Kirjanpito on jo auki." << std::endl;
             doExecute();
@@ -140,13 +159,8 @@ void CLIController::doExecute()
 
     YhteysModel *model = kp()->yhteysModel();
     if (!model) {
-        // Katsotaan taas ollaanko menossa pilveen
-        bool cloudMode = false;
-        for (const QString &arg : QCoreApplication::arguments()) {
-            if (arg == "--pro" || arg == "--api") { cloudMode = true; break; }
-        }
-
-        if (cloudMode) {
+        // Pilvessä kirjanpito voi olla vielä latautumassa
+        if (isCloudMode()) {
              QTimer::singleShot(1000, this, &CLIController::doExecute);
              return;
         }
