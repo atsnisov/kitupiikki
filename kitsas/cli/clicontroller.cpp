@@ -5,9 +5,16 @@
 #include <QDebug>
 #include <QFile>
 #include <iostream>
+#include <string>
+#include <QCommandLineParser>
+
+#ifdef Q_OS_WIN
+#include <conio.h>
+#include <cwchar>
+#else
 #include <termios.h>
 #include <unistd.h>
-#include <QCommandLineParser>
+#endif
 
 #include "clicontroller.h"
 #include "db/kirjanpito.h"
@@ -16,6 +23,45 @@
 #include "aloitussivu/loginservice.h"
 #include <QTimer>
 #include <QSettings>
+
+// stdout on varattu komennon JSON-tulokselle, joten kaikki muu tulostus
+// (edistyminen, kehotteet, virheilmoitukset ihmiselle) menee stderr:iin.
+
+namespace {
+
+// Luetaan salasana näyttämättä sitä päätteessä
+std::string readPassword()
+{
+    std::string password;
+#ifdef Q_OS_WIN
+    std::wstring input;
+    for (;;) {
+        const wint_t c = _getwch();
+        if (c == L'\r' || c == L'\n' || c == WEOF)
+            break;
+        if (c == 0 || c == 0xE0) {
+            _getwch();      // Erikoisnäppäimen toinen koodi ohitetaan
+        } else if (c == L'\b') {
+            if (!input.empty())
+                input.pop_back();
+        } else {
+            input.push_back(static_cast<wchar_t>(c));
+        }
+    }
+    password = QString::fromStdWString(input).toStdString();
+#else
+    termios oldt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    termios newt = oldt;
+    newt.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    std::cin >> password;
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+#endif
+    return password;
+}
+
+}
 
 CLIController::CLIController(QObject *parent) : QObject(parent)
 {
@@ -35,9 +81,9 @@ int CLIController::run(const QString &command, const QString &data, const QStrin
         }
     }
 
-    std::cout << "Käynnistetään CLI-ohjaus..." << std::endl;
+    std::cerr << "Käynnistetään CLI-ohjaus..." << std::endl;
     QTimer::singleShot(0, this, [this, command, data]() {
-        std::cout << "Suoritetaan komento: " << command.toStdString() << std::endl;
+        std::cerr << "Suoritetaan komento: " << command.toStdString() << std::endl;
         execute(command, data);
     });
     return QCoreApplication::exec();
@@ -51,36 +97,30 @@ bool CLIController::isCloudMode()
 
 void CLIController::execute(const QString &command, const QString &data)
 {
-    std::cout << "CLIController::execute käynnistyy..." << std::endl;
+    std::cerr << "CLIController::execute käynnistyy..." << std::endl;
     command_ = command;
     data_ = data;
 
     if (isCloudMode()) {
         if (kp()->yhteysModel()) {
-            std::cout << "Kirjanpito on jo auki." << std::endl;
+            std::cerr << "Kirjanpito on jo auki." << std::endl;
             doExecute();
         } else {
             // Katsotaan onko meillä valmis istunto
             if (kp()->settings()->contains("AuthKey")) {
-                std::cout << "Käytetään valmiiksi tallennettua istuntoavainta..." << std::endl;
+                std::cerr << "Käytetään valmiiksi tallennettua istuntoavainta..." << std::endl;
                 LoginService *login = new LoginService(nullptr);
                 login->keyLogin();
             } else {
                 // Kysytään tunnukset interaktiivisesti
                 std::string email, password;
-                std::cout << "Kirjaudu Kitsas-pilveen" << std::endl;
-                std::cout << "Sähköposti: ";
+                std::cerr << "Kirjaudu Kitsas-pilveen" << std::endl;
+                std::cerr << "Sähköposti: ";
                 std::cin >> email;
                 
-                std::cout << "Salasana: ";
-                termios oldt;
-                tcgetattr(STDIN_FILENO, &oldt);
-                termios newt = oldt;
-                newt.c_lflag &= ~ECHO;
-                tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-                std::cin >> password;
-                tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-                std::cout << std::endl;
+                std::cerr << "Salasana: ";
+                password = readPassword();
+                std::cerr << std::endl;
                 
                 QVariantMap map;
                 map.insert("email", QString::fromStdString(email));
@@ -91,17 +131,17 @@ void CLIController::execute(const QString &command, const QString &data)
                 login->auth(map);
             }
 
-            std::cout << "Odotetaan kirjautumista ja kirjanpitojen latautumista..." << std::endl;
+            std::cerr << "Odotetaan kirjautumista ja kirjanpitojen latautumista..." << std::endl;
             connect(kp()->pilvi(), &PilviModel::kirjauduttu, this, [this](PilviKayttaja user) {
                 if (user) {
-                    std::cout << "Käyttäjä tunnistettu: " << user.nimi().toStdString() << std::endl;
+                    std::cerr << "Käyttäjä tunnistettu: " << user.nimi().toStdString() << std::endl;
                     if (kp()->yhteysModel()) {
-                        std::cout << "Kirjanpito avautui automaattisesti." << std::endl;
+                        std::cerr << "Kirjanpito avautui automaattisesti." << std::endl;
                         doExecute();
                     } else if (kp()->pilvi()->rowCount() > 0) {
                         int id = kp()->pilvi()->index(0, 0).data(PilviModel::IdRooli).toInt();
                         QString nimi = kp()->pilvi()->index(0, 0).data(PilviModel::NimiRooli).toString();
-                        std::cout << "Avataan kirjanpito: " << nimi.toStdString() << " (ID: " << id << ")" << std::endl;
+                        std::cerr << "Avataan kirjanpito: " << nimi.toStdString() << " (ID: " << id << ")" << std::endl;
                         kp()->pilvi()->avaaPilvesta(id);
                         connect(kp(), &Kirjanpito::tietokantaVaihtui, this, &CLIController::doExecute, Qt::UniqueConnection);
                     } else {

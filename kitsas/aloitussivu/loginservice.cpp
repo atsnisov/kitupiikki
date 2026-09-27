@@ -187,7 +187,7 @@ void LoginService::loginVastaus()
 
     if( status == 401) {
         if (qApp->property("command").toBool()) {
-            std::cout << "Virhe: Virheellinen salasana." << std::endl;
+            std::cerr << "Virhe: Virheellinen salasana." << std::endl;
         }
         if (messageLabel_) {
             messageLabel_->setText(tr("Virheellinen salasana"));
@@ -200,7 +200,7 @@ void LoginService::loginVastaus()
 
     if( status != 200) {
         if (qApp->property("command").toBool()) {
-            std::cout << "Virhe: Palvelin vastasi statuskoodilla " << status << std::endl;
+            std::cerr << "Virhe: Palvelin vastasi statuskoodilla " << status << std::endl;
         } else {
             QMessageBox::critical(myParent, tr("Virhe kirjautumisessa"),
                                   tr("Palvelin ilmoitti virheen %1").arg(status));
@@ -210,7 +210,7 @@ void LoginService::loginVastaus()
     }
 
     if (qApp->property("command").toBool()) {
-        std::cout << "Kirjautuminen onnistui." << std::endl;
+        std::cerr << "Kirjautuminen onnistui." << std::endl;
     }
 
     QByteArray vastaus = reply->readAll();
@@ -239,9 +239,9 @@ void LoginService::request2fa(const QVariantMap &map)
 {
     QString code;
     if (qApp->property("command").toBool()) {
-        std::cout << "Kaksivaiheinen tunnistautuminen (2FA) vaaditaan käyttäjälle: " 
+        std::cerr << "Kaksivaiheinen tunnistautuminen (2FA) vaaditaan käyttäjälle: " 
                   << map.value("name").toString().toStdString() << std::endl;
-        std::cout << "Syötä 2FA-koodi: ";
+        std::cerr << "Syötä 2FA-koodi: ";
         std::string input;
         std::cin >> input;
         code = QString::fromStdString(input);
@@ -276,7 +276,7 @@ void LoginService::verkkovirhe(QNetworkReply::NetworkError virhe)
     qWarning() << "LoginService verkkovirhe " << virhe << " " << txt;
 
     if (qApp->property("command").toBool()) {
-        std::cout << "Verkkovirhe: " << txt.toStdString() << std::endl;
+        std::cerr << "Verkkovirhe: " << txt.toStdString() << std::endl;
         return;
     }
 
@@ -290,7 +290,7 @@ void LoginService::verkkovirhe(QNetworkReply::NetworkError virhe)
 void LoginService::vaihtoLahti()
 {
     if (qApp->property("command").toBool()) {
-        std::cout << "Salasanan palautuslinkki lähetetty." << std::endl;
+        std::cerr << "Salasanan palautuslinkki lähetetty." << std::endl;
         return;
     }
     QWidget* myParent = qobject_cast<QWidget*>(parent());
@@ -326,7 +326,7 @@ void LoginService::auth(QVariantMap map)
 
     QString urlStr = kp()->pilvi()->pilviLoginOsoite() + "/auth";
     if (qApp->property("command").toBool()) {
-        std::cout << "Auth URL: " << urlStr.toStdString() << std::endl;
+        std::cerr << "Auth URL: " << urlStr.toStdString() << std::endl;
     }
     QNetworkRequest request;
     request.setUrl(QUrl( urlStr ));
