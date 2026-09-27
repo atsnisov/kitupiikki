@@ -1,0 +1,121 @@
+# Windows-käännös (Qt + MSVC). Tuloksena artefakti, jossa on
+#   kitsas.exe      - tavallinen graafinen ohjelma
+#   kitsas-cli.exe  - sama ohjelma konsolisovellukseksi merkittynä (komentorivikäyttöön)
+name: Windows build
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'mac/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Sama Qt-versio kuin alkuperäisen ohjelman julkaisupaketoinnissa (paketoi-Linux-qt6.sh)
+  QT_VERSION: '6.9.3'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install Qt ${{ env.QT_VERSION }} (MSVC)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtwebengine qtwebchannel qtpositioning qtpdf qt5compat
+          aqtversion: '>=3.2.1'
+          cache: true
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install jom
+        shell: pwsh
+        run: |
+          # jom = rinnakkainen nmake; ilman sitä käännös kestää moninkertaisesti
+          try {
+            Invoke-WebRequest https://download.qt.io/official_releases/jom/jom.zip -OutFile "$env:RUNNER_TEMP\jom.zip"
+            Expand-Archive "$env:RUNNER_TEMP\jom.zip" -DestinationPath "$env:RUNNER_TEMP\jom"
+            Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\jom"
+          } catch {
+            Write-Warning "jom not available, falling back to nmake: $_"
+          }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          New-Item -ItemType Directory -Force build | Out-Null
+          Set-Location build
+          $out = ($PWD.Path -replace '\\', '/') + '/out'
+          qmake ..\kitsas\kitsas.pro "CONFIG+=release" "CONFIG-=debug_and_release" "DESTDIR=$out"
+          if (Get-Command jom -ErrorAction SilentlyContinue) { jom } else { nmake }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $dist = "$env:GITHUB_WORKSPACE\dist\Kitsas"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Copy-Item build\out\kitsas.exe $dist
+          windeployqt --release --no-compiler-runtime "$dist\kitsas.exe"
+
+          # MSVC-ajonaikaiskirjastot ohjelman viereen: erillistä VC++-asennusta ei tarvita
+          $crt = Get-ChildItem "$env:VCToolsRedistDir\x64" -Directory -Filter 'Microsoft.VC*.CRT' | Select-Object -First 1
+          if (-not $crt) { throw "MSVC runtime not found under $env:VCToolsRedistDir" }
+          Copy-Item "$($crt.FullName)\*.dll" $dist
+
+          # Sama ohjelma konsolisovellukseksi merkittynä: tuloste näkyy ja PowerShell odottaa
+          Copy-Item "$dist\kitsas.exe" "$dist\kitsas-cli.exe"
+          editbin /nologo /SUBSYSTEM:CONSOLE "$dist\kitsas-cli.exe"
+
+          Copy-Item LICENSE, README.md, CLI_API.md $dist
+          @(
+            "Kitsas (muokattu versio) - Windows build"
+            "Commit: $env:GITHUB_SHA"
+            "Source: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/tree/$env:GITHUB_SHA"
+            "Built:  $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC, Qt $env:QT_VERSION, MSVC"
+          ) | Set-Content -Encoding utf8 "$dist\BUILD.txt"
+
+      - name: Smoke test CLI
+        shell: pwsh
+        run: |
+          # Ohjelman pitää käynnistyä (kaikki DLL:t löytyvät) ja vastata yhdellä JSON-dokumentilla
+          $dist = "$env:GITHUB_WORKSPACE\dist\Kitsas"
+          $p = Start-Process -FilePath "$dist\kitsas-cli.exe" `
+                 -ArgumentList '--command "GET info" "C:\no-such-file.kitsas"' `
+                 -RedirectStandardOutput "$env:RUNNER_TEMP\out.json" `
+                 -RedirectStandardError "$env:RUNNER_TEMP\err.txt" `
+                 -NoNewWindow -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "kitsas-cli.exe did not exit within 120 s" }
+          Get-Content "$env:RUNNER_TEMP\err.txt"
+          $stdout = Get-Content "$env:RUNNER_TEMP\out.json" -Raw
+          Write-Host "exit code $($p.ExitCode), stdout: $stdout"
+          $json = $stdout | ConvertFrom-Json
+          if ($p.ExitCode -ne 1 -or $json.code -ne 404) { throw "Unexpected CLI result" }
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kitsas-muokattu-windows
+          path: dist/
+          retention-days: 30
