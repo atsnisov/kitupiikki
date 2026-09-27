@@ -72,11 +72,11 @@ int CLIController::run(const QString &command, const QString &data, const QStrin
     // Pilvitilassa ei tarvita paikallista tiedostoa
     if (!isCloudMode()) {
         if (file.isEmpty() || !QFile::exists(file)) {
-            std::cerr << "Virhe: Tietokantatiedosto puuttuu tai sitä ei löydy." << std::endl;
+            exitWithError(404, "Bookkeeping file not found: " + file);
             return 1;
         }
         if (!kp()->sqlite()->avaaTiedosto(file)) {
-            std::cerr << "Virhe: Tietokantatiedostoa ei voitu avata." << std::endl;
+            exitWithError(500, "Cannot open bookkeeping file: " + file);
             return 1;
         }
     }
@@ -85,6 +85,10 @@ int CLIController::run(const QString &command, const QString &data, const QStrin
     QTimer::singleShot(0, this, [this, command, data]() {
         std::cerr << "Suoritetaan komento: " << command.toStdString() << std::endl;
         execute(command, data);
+    });
+    // Ellei komentoon tule vastausta, ei jäädä odottamaan ikuisesti
+    QTimer::singleShot(120000, this, [this]() {
+        exitWithError(504, "Timeout: no response to the command within 120 s.");
     });
     return QCoreApplication::exec();
 }
@@ -176,7 +180,12 @@ void CLIController::doExecute()
     QString path;
 
     if (parts.size() >= 2) {
-        method = parseMethod(parts[0]);
+        bool ok = false;
+        method = parseMethod(parts[0], &ok);
+        if (!ok) {
+            exitWithError(400, "Unknown method: " + parts[0]);
+            return;
+        }
         path = parts[1];
     } else {
         path = parts[0];
@@ -221,21 +230,27 @@ void CLIController::doExecute()
     kysely->kysy(payload);
 }
 
-KpKysely::Metodi CLIController::parseMethod(const QString &methodStr)
+KpKysely::Metodi CLIController::parseMethod(const QString &methodStr, bool *ok)
 {
     QString m = methodStr.toUpper();
+    *ok = true;
     if (m == "GET") return KpKysely::GET;
     if (m == "POST") return KpKysely::POST;
     if (m == "PATCH") return KpKysely::PATCH;
     if (m == "PUT") return KpKysely::PUT;
     if (m == "DELETE") return KpKysely::DELETE;
+    *ok = false;
     return KpKysely::GET;
 }
 
+// Lisäyksessä kysely lähettää ensin vastaus-signaalin ja heti perään
+// lisaysVastaus-signaalin. Siksi tulos tulostetaan vasta tapahtumasilmukan
+// seuraavalla kierroksella, jotta stdout:iin tulee aina tasan yksi JSON.
+
 void CLIController::handleResponse(QVariant *reply)
 {
-    printResult(*reply);
-    QCoreApplication::exit(0);
+    result_ = *reply;
+    scheduleFinish();
 }
 
 void CLIController::handleAdditionResponse(const QVariant &reply, int id)
@@ -243,8 +258,8 @@ void CLIController::handleAdditionResponse(const QVariant &reply, int id)
     QVariantMap result;
     result["id"] = id;
     result["data"] = reply;
-    printResult(result);
-    QCoreApplication::exit(0);
+    result_ = result;
+    scheduleFinish();
 }
 
 void CLIController::handleError(int code, const QString &explanation)
@@ -252,18 +267,49 @@ void CLIController::handleError(int code, const QString &explanation)
     exitWithError(code, explanation);
 }
 
+void CLIController::scheduleFinish()
+{
+    if (!finishScheduled_) {
+        finishScheduled_ = true;
+        QTimer::singleShot(0, this, &CLIController::finish);
+    }
+}
+
+void CLIController::finish()
+{
+    if (finished_)
+        return;
+    finished_ = true;
+    printResult(result_);
+    QCoreApplication::exit(0);
+}
+
 void CLIController::printResult(const QVariant &result)
 {
-    QJsonDocument doc = QJsonDocument::fromVariant(result);
-    std::cout << doc.toJson(QJsonDocument::Indented).constData() << std::endl;
+    const QJsonValue value = QJsonValue::fromVariant(result);
+    QByteArray json;
+    if (value.isObject()) {
+        json = QJsonDocument(value.toObject()).toJson(QJsonDocument::Indented);
+    } else if (value.isArray()) {
+        json = QJsonDocument(value.toArray()).toJson(QJsonDocument::Indented);
+    } else {
+        // Yksittäinen arvo (esim. null): QJsonDocument ei tue sitä suoraan
+        json = QJsonDocument(QJsonArray{value}).toJson(QJsonDocument::Compact);
+        json = json.mid(1, json.length() - 2) + "\n";
+    }
+    std::cout << json.constData() << std::flush;
 }
 
 void CLIController::exitWithError(int code, const QString &message)
 {
+    if (finished_)
+        return;
+    finished_ = true;
+
     QJsonObject error;
     error["code"] = code;
     error["message"] = message;
-    QJsonDocument doc(error);
-    std::cerr << doc.toJson(QJsonDocument::Indented).constData() << std::endl;
+    std::cout << QJsonDocument(error).toJson(QJsonDocument::Indented).constData() << std::flush;
+    std::cerr << "Virhe " << code << ": " << message.toStdString() << std::endl;
     QCoreApplication::exit(1);
 }

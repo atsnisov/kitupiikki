@@ -36,16 +36,21 @@ private slots:
     void handleAdditionResponse(const QVariant& reply, int id);
     void handleError(int code, const QString& explanation);
     void doExecute();
+    void finish();
 
 private:
+    void scheduleFinish();
     void printResult(const QVariant& result);
     void exitWithError(int code, const QString& message);
 
-    KpKysely::Metodi parseMethod(const QString& methodStr);
+    KpKysely::Metodi parseMethod(const QString& methodStr, bool* ok);
     static bool isCloudMode();
 
     QString command_;
     QString data_;
+    QVariant result_;
+    bool finishScheduled_ = false;
+    bool finished_ = false;
 };
 
 #endif // CLICONTROLLER_H
