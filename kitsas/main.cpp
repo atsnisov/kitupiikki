@@ -52,7 +52,8 @@
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    a.setApplicationVersion(KITSAS_VERSIO);
+    // Lisenssin lisäehto: muokattu versio on merkittävä selkeästi muutetuksi
+    a.setApplicationVersion(QString(KITSAS_VERSIO) + " (muokattu versio)");
     a.setOrganizationDomain("kitsas.fi");
     a.setOrganizationName("Kitsas oy");
 

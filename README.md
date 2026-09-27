@@ -1,4 +1,20 @@
 # Kitsas
+
+> **Muokattu versio – ei Kitsas Oy:n tukema.**
+>
+> Tämä on muokattu versio [artoh/kitupiikki](https://github.com/artoh/kitupiikki)-ohjelmasta.
+> Se perustuu [ollisulopuisto/kitupiikki](https://github.com/ollisulopuisto/kitupiikki)-haaraan.
+> Kitsas Oy ei tarjoa mitään tukea tälle muokatulle versiolle, joten älä ota
+> tätä versiota koskevissa asioissa yhteyttä alkuperäisen ohjelman tukeen.
+> Ohjelman versionumerossa näkyy merkintä "(muokattu versio)".
+>
+> Muutokset alkuperäiseen:
+> - komentorivikäyttö (`--command`, `--data`), ks. [CLI_API.md](CLI_API.md)
+> - Windows-käännös GitHub Actionsilla, ks. `.github/workflows/windows.yml`
+>
+> *Modified version of Kitsas (artoh/kitupiikki via ollisulopuisto/kitupiikki).
+> Not supported by the original publisher.*
+
 Ykkösversio julkaistu nimellä [Kitupiikki](https://kitupiikki.info)
 
 ![Kitsas](https://raw.githubusercontent.com/artoh/kitupiikki/master/kitsas/pic/kitsas150.png)
