@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QDebug>
 #include <QFile>
+#include <QTextStream>
 #include <iostream>
 #include <string>
 #include <QCommandLineParser>
@@ -103,7 +104,20 @@ void CLIController::execute(const QString &command, const QString &data)
 {
     std::cerr << "CLIController::execute käynnistyy..." << std::endl;
     command_ = command;
-    data_ = data;
+
+    // --data @tiedosto: JSON luetaan tiedostosta. Windowsin PowerShell 5.1
+    // ei välitä lainausmerkkejä ohjelmille luotettavasti.
+    if (data.startsWith('@')) {
+        QFile dataFile(data.mid(1));
+        if (!dataFile.open(QIODevice::ReadOnly)) {
+            exitWithError(400, "Cannot read data file: " + data.mid(1));
+            return;
+        }
+        QTextStream stream(&dataFile);   // Tunnistaa UTF-8- ja UTF-16-BOM:n
+        data_ = stream.readAll();
+    } else {
+        data_ = data;
+    }
 
     if (isCloudMode()) {
         if (kp()->yhteysModel()) {

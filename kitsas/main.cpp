@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
                            "Suorita yksi komento ilman käyttöliittymää, esim. \"GET tilit\"",
                            "komento"},
                           {"data",
-                           "Komennon JSON-data",
+                           "Komennon JSON-data, tai @tiedosto josta data luetaan",
                            "json"}
                       });
     parser.addVersionOption();
