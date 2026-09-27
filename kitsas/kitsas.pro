@@ -17,9 +17,13 @@ linux {
 windows {
  #   DEFINES += USE_ZIPLIB
  #   LIBS += -lzip
-    LIBS += -L$$PWD/../../../../openjpeg-v2.5.0-windows-x64/openjpeg-v2.5.0-windows-x64/lib/ -lopenjp2
-    INCLUDEPATH += $$PWD/../../../../openjpeg-v2.5.0-windows-x64/openjpeg-v2.5.0-windows-x64/include
-    DEPENDPATH += $$PWD/../../../../openjpeg-v2.5.0-windows-x64/openjpeg-v2.5.0-windows-x64/include
+    # openjpeg vain, jos se löytyy kehittäjän koneelta (lähdekoodi ei käytä sitä)
+    OPENJPEG_DIR = $$PWD/../../../../openjpeg-v2.5.0-windows-x64/openjpeg-v2.5.0-windows-x64
+    exists($$OPENJPEG_DIR/lib) {
+        LIBS += -L$$OPENJPEG_DIR/lib/ -lopenjp2
+        INCLUDEPATH += $$OPENJPEG_DIR/include
+        DEPENDPATH += $$OPENJPEG_DIR/include
+    }
     LIBS += -lbcrypt
 
 
